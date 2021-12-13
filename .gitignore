@@ -1,0 +1,12 @@
+data/
+Presentation/
+Report/
+__pycache__/
+results/
+Overleaf/
+results
+*.pdf
+*.pt
+*.tmp
+*.out
+*.err
