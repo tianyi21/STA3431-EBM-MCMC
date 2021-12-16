@@ -17,6 +17,7 @@ from params import *
 
 
 class Sampler:
+    """main Sampler class"""
     def __init__(self, buf_size, batch_size, img_size, device):
         self.buf_size = buf_size
         self.batch_size = batch_size
@@ -25,6 +26,7 @@ class Sampler:
         self.device = device
     
     def _fetch(self, reinit_freq=0.05):
+        """fetch from buffer"""
         idx = np.random.choice(self.buf_size, (self.batch_size, ), replace=False)
         prev_samples = self.buffer[idx]
         reinit_idx = (torch.rand(self.batch_size) < reinit_freq)[:,None,None,None]
@@ -32,6 +34,7 @@ class Sampler:
         return torch.where(reinit_idx, reinit_samples, prev_samples), idx
     
     def _restore(self, sample, idx):
+        """restore new samples to buffer"""
         self.buffer[idx] = sample.detach().cpu()
         
     def visualize(self, title, path):
@@ -98,13 +101,14 @@ class HMC(Sampler):
             samples = torch.where(mask, q_new, samples)
             masks = mask if masks is None else torch.cat((masks, mask), dim=0)
             print(f"> HMC: acceptance rate={mask.float().mean().cpu():.2%}")
-        print(f"> Overal: acceptance rate={masks.float().mean().cpu():.2%}")
+        print(f"> Overall: acceptance rate={masks.float().mean().cpu():.2%}")
         self._restore(samples, idx)
         model.train()
         return samples
     
     @staticmethod
     def _leapfrog(self, q, p, dVdq):
+        """leap frog integrator"""
         p = p - self.step_size * dVdq(q) / 2
         q = q + self.step_size * p / self.sigma
         for _ in range(self.path_n - 1):
@@ -164,9 +168,12 @@ class DualAveragingStepSizeScheduler:
         self.initial_step_size = initial_step_size
         self.mu = np.log(10 * initial_step_size)
         self.target_accept = target_accept
+        # shrinkage rate
         self.gamma = gamma
+        # oscillation damping
         self.t0 = t0
         self.t = t0
+        # forget rate
         self.kappa = kappa
         self.tune_step = tune_step
         
@@ -220,11 +227,12 @@ class AdaptiveHMC(HMC):
             mask = (torch.log(torch.rand(self.batch_size, 1)) < (init_log_p - new_log_p).cpu())[:,None,None].to(self.device)
             samples = torch.where(mask, q_new, samples)
             masks = mask if masks is None else torch.cat((masks, mask), dim=0)
+            # learning step size
             if self.n_step.val > 20:
                 self.step_size_scheduler(masks.float().mean().cpu())
                 self.step_size = self.step_size_scheduler.step_size
                 print(f"> Current step size={self.step_size:.4f} acceptance rate={mask.float().mean().cpu():.2%}")
-        print(f"> Overal: acceptance rate={masks.float().mean().cpu():.2%}")
+        print(f"> Overall: acceptance rate={masks.float().mean().cpu():.2%}")
         self._restore(samples, idx)
         model.train()
         return samples
